@@ -293,6 +293,7 @@ Inherits TestGroup
 		  dict.Value( "2.5" ) = 2.5
 		  dict.Value( "false" ) = false
 		  dict.Value( "arr" ) = arr
+		  dict.Value( "serialize" ) = New SerializableTest
 		  
 		  json = GenerateJSON_MTC( dict, true )
 		  Assert.Message json.ToText

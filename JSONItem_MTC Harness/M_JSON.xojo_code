@@ -367,6 +367,89 @@ Protected Module M_JSON
 	#tag EndMethod
 
 	#tag Method, Flags = &h21
+		Private Sub EncodeDictionary(dict As Xojo.Core.Dictionary, level As Integer, ByRef outBuffer As MemoryBlock, ByRef outPtr As Ptr, ByRef outIndex As Integer, ByRef inBuffer As MemoryBlock)
+		  #if not DebugBuild
+		    #pragma BackgroundTasks kAllowBackgroudTasks
+		    #pragma BoundsChecking false
+		    #pragma NilObjectChecking false
+		    #pragma StackOverflowChecking false
+		  #endif
+		  
+		  const kColon as integer = 58
+		  
+		  dim prettyPrint as boolean = level > -1
+		  
+		  ExpandOutBuffer ( dict.Count ) * 20 + 5, outBuffer, outPtr, outIndex
+		  
+		  dim thisIndent as string
+		  dim nextIndent as string
+		  dim nextIndentLen as integer
+		  const kComma as integer = 44
+		  dim colon as string = ":"
+		  dim colonLen as integer = 1
+		  if prettyPrint then
+		    ExpandIndentArr( level + 1 )
+		    thisIndent = IndentArr( level )
+		    nextIndent = IndentArr( level + 1 )
+		    nextIndentLen = nextIndent.LenB
+		    colon = " : "
+		    colonLen = 3
+		  end if
+		  
+		  outBuffer.Byte( outIndex ) = kCurlyBrace
+		  outIndex = outIndex + 1
+		  
+		  if dict.Count = 0 then
+		    outBuffer.Byte( outIndex ) = kCloseCurlyBrace
+		    outIndex = outIndex + 1
+		    return
+		  end if
+		  
+		  dim counter as integer = 1
+		  dim bound as integer = dict.Count
+		  for each entry as Xojo.Core.DictionaryEntry in dict
+		    dim key as variant = entry.key
+		    dim value as variant = entry.value
+		    
+		    if prettyPrint then
+		      ExpandOutBuffer nextIndentLen, outBuffer, outPtr, outIndex
+		      outBuffer.StringValue( outIndex, nextIndentLen ) = nextIndent
+		      outIndex = outIndex + nextIndentLen
+		    end if
+		    
+		    EncodeString key, outBuffer, outPtr, outIndex, inBuffer
+		    ExpandOutBuffer colonLen, outBuffer, outPtr, outIndex
+		    if prettyPrint then
+		      outBuffer.StringValue( outIndex, colonLen ) = colon
+		    else
+		      outPtr.Byte( outIndex ) = kColon
+		    end if
+		    outIndex = outIndex + colonLen
+		    
+		    EncodeValue value, level + 1, outBuffer, outPtr, outIndex, inBuffer
+		    if counter < bound then
+		      ExpandOutBuffer 1, outBuffer, outPtr, outIndex
+		      outBuffer.Byte( outIndex ) = kComma
+		      outIndex = outIndex + 1
+		    end if
+		    
+		    counter = counter + 1
+		  next
+		  
+		  if prettyPrint then
+		    ExpandOutBuffer nextIndentLen, outBuffer, outPtr, outIndex
+		    outBuffer.StringValue( outIndex, thisIndent.LenB ) = thisIndent
+		    outIndex = outIndex + thisIndent.LenB
+		  end if
+		  
+		  ExpandOutBuffer 1, outBuffer, outPtr, outIndex
+		  outBuffer.Byte( outIndex ) = kCloseCurlyBrace
+		  outIndex = outIndex + 1
+		  
+		End Sub
+	#tag EndMethod
+
+	#tag Method, Flags = &h21
 		Private Sub EncodeString(s As String, ByRef outBuffer As MemoryBlock, ByRef outPtr As Ptr, ByRef outIndex As Integer, ByRef inBuffer As MemoryBlock)
 		  #if not DebugBuild
 		    #pragma BackgroundTasks kAllowBackgroudTasks
@@ -547,6 +630,9 @@ Protected Module M_JSON
 		    EncodeString( value.StringValue, outBuffer, outPtr, outIndex, inBuffer )
 		    
 		  case Variant.TypeText
+		    EncodeString( value.TextValue, outBuffer, outPtr, outIndex, inBuffer )
+		    
+		  case Variant.TypeText
 		    dim t as text = value.TextValue
 		    dim s as string = t
 		    EncodeString( s, outBuffer, outPtr, outIndex, inBuffer )
@@ -554,10 +640,25 @@ Protected Module M_JSON
 		  case Variant.TypeDate
 		    EncodeString( value.DateValue.SQLDateTime, outBuffer, outPtr, outIndex, inBuffer )
 		    
+		  case Variant.TypeObject
+		    dim obj as object = value.objectvalue
+		    select case obj
+		    case isa Dictionary
+		      EncodeDictionary( Dictionary( obj ), level, outBuffer, outPtr, outIndex, inBuffer )
+		      
+		    case isa Xojo.Core.Dictionary
+		      EncodeDictionary( Xojo.Core.Dictionary( obj ), level, outBuffer, outPtr, outIndex, inBuffer )
+		      
+		    case isa JSONSerializable
+		      EncodeValue( JSONSerializable( obj ).JSONSerialize, level, outBuffer, outPtr, outIndex, inBuffer )
+		      
+		    case isa Xojo.Core.Date
+		      EncodeString( Xojo.Core.Date( obj ).ToText, outBuffer, outPtr, outIndex, inBuffer )
+		      
+		    end select
+		    
 		  case else
-		    if value.Type = Variant.TypeObject and value isa Dictionary then
-		      EncodeDictionary( value, level, outBuffer, outPtr, outIndex, inBuffer )
-		    elseif value.IsArray then
+		    if value.IsArray Then
 		      EncodeArray( value, level, outBuffer, outPtr, outIndex, inBuffer )
 		    end if
 		    
