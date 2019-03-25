@@ -721,6 +721,11 @@ Protected Module M_JSON
 		    // Good
 		    //
 		    
+		  elseif json.Type = Variant.TypeObject and json isa Xojo.Core.Dictionary then
+		    //
+		    // Good
+		    //
+		    
 		  elseif json.IsArray then
 		    //
 		    // Good
